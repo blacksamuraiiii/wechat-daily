@@ -100,7 +100,7 @@ def wechat():
             Event = xml_tree.find("Event").text
             EventKey = xml_tree.find("EventKey").text
             # content = EventKey
-            if Event=='click' and EventKey == '#sendmsg#_0#7599827688213976':
+            if Event=='click' and EventKey == '#sendmsg#_0#7599827067206067':
                     print("开始执行天气推送...")
                     os.system('python src/send_weather_message.py')
                     content = ""
