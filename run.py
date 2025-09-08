@@ -20,6 +20,7 @@ load_dotenv()
 
 # 全局变量，用于过滤重复消息 (使用deque限制内存使用)
 MsgId_list = deque(maxlen=1000)
+MsgId_set = set()
 
 # 全局变量，用于存放用户数据
 user_model_data = {}
@@ -75,9 +76,9 @@ def wechat():
         #构造回复文本
         content = ""
         # 文本消息
-        if MsgType == 'text' and MsgId and MsgId not in MsgId_list:
-            if MsgId:
-                MsgId_list.append(MsgId)
+        if MsgType == 'text' and MsgId and MsgId not in MsgId_set:
+            MsgId_list.append(MsgId)
+            MsgId_set.add(MsgId)
             print('文本消息')
             text = xml_tree.find("Content").text
             

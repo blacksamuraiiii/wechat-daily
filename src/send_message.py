@@ -18,24 +18,41 @@ def send_message(wxid, wxsecret, agentid, touser, content):
         touser: 推送目标用户
         content: 要发送的消息内容
     """
-    # 获取access_token
-    token_url = f'https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid={wxid}&corpsecret={wxsecret}'
-    wx_push_token = requests.post(url=token_url, data="").json()['access_token']
+    try:
+        # 获取access_token
+        token_url = f'https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid={wxid}&corpsecret={wxsecret}'
+        try:
+            token_response = requests.post(url=token_url, data="").json()
+            if token_response.get('errcode') != 0:
+                print(f"获取token失败: {token_response.get('errmsg', '未知错误')}")
+                return
+            wx_push_token = token_response['access_token']
+        except Exception as e:
+            print(f"获取token异常: {e}")
+            return
 
-    # 构建推送数据
-    wx_push_data = {
-        "agentid": agentid,
-        "msgtype": "text",
-        "touser": touser,
-        "text": {
-            "content": content
-        },
-        "safe": 0
-    }
+        # 构建推送数据
+        wx_push_data = {
+            "agentid": agentid,
+            "msgtype": "text",
+            "touser": touser,
+            "text": {
+                "content": content
+            },
+            "safe": 0
+        }
 
-    # 发送消息
-    push_url = f'https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={wx_push_token}'
-    requests.post(push_url, json=wx_push_data)
+        # 发送消息
+        push_url = f'https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={wx_push_token}'
+        push_response = requests.post(push_url, json=wx_push_data).json()
+        
+        if push_response.get('errcode') != 0:
+            print(f"发送消息失败: {push_response.get('errmsg', '未知错误')}")
+        else:
+            print("消息发送成功")
+            
+    except Exception as e:
+        print(f"发送消息异常: {e}")
 
 
 
@@ -51,4 +68,3 @@ if __name__ == '__main__':
 
     # 发送消息测试
     send_message(wxid, wxsecret, agentid, touser, 'hello,world!')
-    print('消息已发送')

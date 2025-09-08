@@ -32,7 +32,6 @@ def chat_with_llm(base_url, api_key, model_name, FromUserName, question, user_mo
     # 检查是否新用户
     if FromUserName not in user_model_data:
         # 初始化ChatGPT模型
-        import os
         if not api_key:
             return "错误：API密钥未设置，请检查环境变量 AI_API_KEY"
         if not model_name:
@@ -121,7 +120,6 @@ if __name__ == '__main__':
         # 测试
         from send_message import send_message
         send_message(wxid, wxsecret, agentid, touser, content)
-        print('消息已发送')
     
     finally:
         # 删除锁文件

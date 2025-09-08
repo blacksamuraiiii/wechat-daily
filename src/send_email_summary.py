@@ -40,6 +40,18 @@ def decode_str(s):
     except Exception:
         return str(s) # 如果解码失败，返回原始字符串
 
+def safe_id_str(n):
+    """
+    安全地将邮件ID转换为字符串。
+
+    Args:
+        n: 邮件ID（可能是bytes或str）
+
+    Returns:
+        str: 字符串形式的邮件ID
+    """
+    return n.decode() if isinstance(n, bytes) else str(n)
+
 def extract_main_body(text):
     """
     智能提取邮件正文，移除引用和签名。
@@ -164,9 +176,6 @@ def get_emails(start_date, end_date):
         
         filtered_ids = []
         for num in reversed(target_ids_to_scan):
-            def safe_id_str(n):
-                return n.decode() if isinstance(n, bytes) else str(n)
- 
             try:
                 # =================== 核心修正部分 ===================
                 # 直接、高效地只获取邮件的Date标头，这是最可靠的方法
@@ -208,9 +217,6 @@ def get_emails(start_date, end_date):
         # --- 第二阶段：获取筛选后邮件的完整内容 ---
         print("--- 阶段2: 开始获取邮件正文内容 ---")
         for i, num in enumerate(filtered_ids):
-            def safe_id_str(n):
-                return n.decode() if isinstance(n, bytes) else str(n)
-            
             print(f"正在处理第 {i+1}/{len(filtered_ids)} 封邮件 (ID: {safe_id_str(num)})...")
             try:
                 status, data = mail.fetch(num, '(RFC822)')
@@ -238,8 +244,8 @@ def get_emails(start_date, end_date):
         print(f"\n--- 阶段2完成: 成功处理了 {len(emails_data)} 封邮件。---")
 
         # 统计邮件数量
-        total_received = len(emails_data)
         total_sent = sum(1 for mail in emails_data if user_email.lower() in mail.get('from', '').lower())
+        total_received = len(emails_data) - total_sent
 
         return emails_data, total_received, total_sent
  
@@ -358,19 +364,34 @@ if __name__ == '__main__':
         emails, total_received, total_sent = get_emails(start_date=today, end_date=today)
 
         # 2. 生成总结
+        week_dict = {
+            0:"星期一",
+            1:"星期二",
+            2:"星期三",
+            3:"星期四",
+            4:"星期五",
+            5:"星期六",
+            6:"星期日"
+        }
+        day = today.strftime("%Y-%m-%d") + " " + week_dict[today.weekday()]
+
+
         if not emails:
-            summary = f"{today.strftime('%Y-%m-%d')} 未收到新邮件。"
+            content = f"{day} 未收到新邮件。"
         else:
-            summary = summarize_with_ai(emails, total_received, total_sent)
-    
+            content = (
+                f"{day}\n\n"
+                "*************************\n\n"
+                f"{summarize_with_ai(emails, total_received, total_sent)}"
+            )
+
         print("\n--- 生成的总结内容 ---\n")
-        print(summary)
+        print(content)
         print("\n---------------------\n")
 
         # 3. 推送消息
         from send_message import send_message
-        send_message(wxid, wxsecret, agentid, touser, summary)
-        print('消息已发送')
+        send_message(wxid, wxsecret, agentid, touser, content)
     
     finally:
         # 删除锁文件

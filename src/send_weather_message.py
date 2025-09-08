@@ -38,9 +38,15 @@ def weather_info(cookie, city_code, timestamps):
     }
     weather_url = f'http://d1.weather.com.cn/dingzhi/{city_code}.html?_={timestamps}'
     weather_req = requests.get(url=weather_url,headers=w_headers, timeout=30).content.decode('utf-8')
-    weather_info = json.loads(weather_req.replace(f"var cityDZ{city_code} =", "").split(f";var alarmDZ{city_code} =")[0])['weatherinfo']
-    warning_json = json.loads(weather_req.replace(f"var cityDZ{city_code} =", "").split(f";var alarmDZ{city_code} =")[1])
     try:
+        weather_data = json.loads(weather_req.replace(f"var cityDZ{city_code} =", "").split(f";var alarmDZ{city_code} =")[0])
+        weather_info = weather_data['weatherinfo']
+    except (json.JSONDecodeError, KeyError) as e:
+        print(f"天气信息解析失败: {e}")
+        weather_info = {}
+    
+    try:
+        warning_json = json.loads(weather_req.replace(f"var cityDZ{city_code} =", "").split(f";var alarmDZ{city_code} =")[1])
         warning = json.loads(str(warning_json).replace("'",'"'))['w'][0]
         warning_info = warning['w5'] + warning['w7']
     except:
@@ -81,15 +87,20 @@ def get_news(news_type, news_time):
     }
     news_url = f'http://top.news.sina.com.cn/ws/GetTopDataList.php?top_type=day&top_cat={news_type}&top_time={news_time}&top_show_num=20&top_order=DESC&js_var=news_'
     news_req = requests.get(url=news_url,headers=news_headers, timeout=30).text.replace("var news_ = ","").replace(r"\/\/","//").replace(";","")
-    format_news = json.loads(json.dumps(news_req ,ensure_ascii=False))
-    news_sub = json.loads(format_news)['data'] #很奇怪，不loads两次的话，type会是str导致无法取值
+    try:
+        news_data = json.loads(news_req)
+        news_sub = news_data.get('data', [])
+    except (json.JSONDecodeError, KeyError) as e:
+        print(f"新闻数据解析失败: {e}")
+        news_sub = []
+    
     news_list = []
     for item in news_sub:
         if str(item['url']).split(".")[0] == "https://video": #新浪的视频新闻总会提示下载APP，直接过滤掉，选择不看
             continue
         else:
             news = f"{item['title']} <a href=\"{item['url']}\">详情</a>"
-            news_list.append(news) 
+            news_list.append(news)
     return news_list
 
 def get_sentence():
@@ -189,7 +200,6 @@ if __name__ == '__main__':
         content = message_content(city_code, timestamps, info_time, get_news(news_type, news_time), get_sentence())
         from send_message import send_message
         send_message(wxid, wxsecret, agentid, touser, content)
-        print('消息已发送')
     
     finally:
         # 删除锁文件
