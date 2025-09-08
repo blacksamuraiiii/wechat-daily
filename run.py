@@ -21,6 +21,9 @@ load_dotenv()
 # 全局变量，用于过滤重复消息 (使用deque限制内存使用)
 MsgId_list = deque(maxlen=1000)
 
+# 全局变量，用于存放用户数据
+user_model_data = {}
+
 # 初始化Flask应用
 app = Flask(__name__)
 @app.route('/wechat',methods=['GET','POST'])
@@ -66,13 +69,15 @@ def wechat():
         ToUserName = xml_tree.find("ToUserName").text
         FromUserName = xml_tree.find("FromUserName").text
         AgentID = xml_tree.find("AgentID").text
-        MsgId = xml_tree.find("MsgId").text
+        MsgId_element = xml_tree.find("MsgId")
+        MsgId = MsgId_element.text if MsgId_element is not None else None
 
         #构造回复文本
         content = ""
         # 文本消息
-        if MsgType == 'text' and MsgId not in MsgId_list:
-            MsgId_list.append(MsgId)
+        if MsgType == 'text' and MsgId and MsgId not in MsgId_list:
+            if MsgId:
+                MsgId_list.append(MsgId)
             print('文本消息')
             text = xml_tree.find("Content").text
             
@@ -85,25 +90,26 @@ def wechat():
                 print(FromUserName," 输入:",text)
                   
             if text == "/clr":
-                global user_model_data
-                user_model_data = {}
+                user_model_data.clear()
                 content = "对话已清空"
             
             else:
-                content = chat_with_llm.chat_with_llm(FromUserName,text,user_model_data)  
+                content = chat_with_llm.chat_with_llm(base_url, api_key, model_name, FromUserName,text,user_model_data)
             
         elif MsgType == 'event':
             Event = xml_tree.find("Event").text
             EventKey = xml_tree.find("EventKey").text
             # content = EventKey
             if Event=='click' and EventKey == '#sendmsg#_0#7599827688213976':
+                    print("开始执行天气推送...")
                     os.system('python src/send_weather_message.py')
                     content = ""
-                    print("执行成功");
+                    print("天气推送执行成功");
             elif Event=='click' and EventKey == '#sendmsg#_1#7599827067206068':
+                    print("开始执行邮件总结...")
                     os.system('python src/send_email_summary.py')
                     content = ""
-                    print("执行成功");
+                    print("邮件总结执行成功");
 
         else:
             content = "未找到对应项"
@@ -125,11 +131,15 @@ def wechat():
 if __name__ == '__main__':
 
     #config
+    global sToken, sEncodingAESKey, sCorpID, base_url, api_key, model_name
     sToken = os.getenv("sToken")
     sEncodingAESKey = os.getenv("sEncodingAESKey")
     sCorpID = os.getenv("WEIXIN_CORP_ID")
-    
-    #设置一个空字典，用户存放用户数据
-    user_model_data = {}
+
+    # AI配置
+    base_url = os.getenv("AI_BASE_URL")
+    api_key = os.getenv("AI_API_KEY")
+    model_name = os.getenv("AI_MODEL_NAME")
+
 
     app.run(host='0.0.0.0',port=1111)

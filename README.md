@@ -98,7 +98,7 @@ WEIXIN_TO_USER = "用户名"  # 或 "@all" 推送给所有人
 # 支持任何OpenAI兼容的API
 AI_API_KEY = "你的API密钥"
 AI_BASE_URL = "https://api.openai.com/v1"
-AI_MODEL = "gpt-4o-mini"
+AI_MODEL_NAME = "gpt-4o-mini"
 ```
 
 #### 邮箱配置
@@ -225,7 +225,7 @@ while True:
 | --------------- | ---------- | ------------------------- |
 | `AI_API_KEY`  | API密钥    | 必需                      |
 | `AI_BASE_URL` | API基础URL | https://api.openai.com/v1 |
-| `AI_MODEL`    | 模型名称   | gpt-4o-mini               |
+| `AI_MODEL_NAME`    | 模型名称   | gpt-4o-mini               |
 
 ### 邮箱配置
 

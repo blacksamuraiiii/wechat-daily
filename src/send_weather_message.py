@@ -8,9 +8,6 @@
 import requests
 import json
 from datetime import datetime
-from dotenv import load_dotenv
-import os
-from .send_message import send_message
 
 
 def weather_info(cookie, city_code, timestamps):
@@ -25,6 +22,7 @@ def weather_info(cookie, city_code, timestamps):
     Returns:
         str: 格式化的天气信息
     """
+    print("--- 1.正在获取天气信息 ---")
     w_headers = {
         "Accept": "*/*",
         "Accept-Encoding": "gzip, deflate",
@@ -68,6 +66,7 @@ def get_news(news_type, news_time):
     Returns:
         list: 新闻列表
     """
+    print("--- 2.正在获取新闻信息 ---")
     news_headers = {
         "Accept": "*/*",
         "Accept-Encoding": "gzip, deflate",
@@ -100,12 +99,14 @@ def get_sentence():
     Returns:
         str: 格式化的金句内容
     """
+    print("--- 3.正在获取每日金句 ---")
     sen_url = 'https://v1.hitokoto.cn?c=d&c=h&c=i&c=k'
     try:
         get_sen = requests.get(url=sen_url, timeout=10).json()
         sentence = f"{get_sen['hitokoto']}\n\n出自：{get_sen['from']}"
     except:
         sentence = "今日无金句，请继续努力！"
+
     return sentence
 
 def message_content(city_code, timestamps, info_time, news_list, sentence):
@@ -141,26 +142,56 @@ def message_content(city_code, timestamps, info_time, news_list, sentence):
         "******每日金句******\n\n"
         f"{sentence}"
     )
+    print(content)
     return content
 
 if __name__ == '__main__':
-    # 加载环境变量
-    load_dotenv(dotenv_path='../.env')
+    # 添加防止重复执行的机制
+    import sys
+    import os
+    
+    # 检查是否已经有实例在运行
+    lock_file = "/tmp/send_weather_message.lock"
+    if sys.platform.startswith("win"):
+        lock_file = os.path.join(os.environ.get("TEMP", "C:\\temp"), "send_weather_message.lock")
+    
+    if os.path.exists(lock_file):
+        print("天气推送任务已在运行中，退出当前实例。")
+        sys.exit(0)
+    
+    # 创建锁文件
+    try:
+        with open(lock_file, 'w') as f:
+            f.write(str(os.getpid()))
+            
+        print("--- 开始获取信息 ---")
 
-    # 获取配置参数
-    city_code = os.getenv('WEATHER_CITY_CODE', '101190601')
-    cookie = os.getenv('WEATHER_COOKIE')
-    news_type = os.getenv('NEWS_TYPE', 'www_www_all_suda_suda')
-    wxid = os.getenv("WEIXIN_CORP_ID")
-    wxsecret = os.getenv("WEIXIN_CORP_SECRET")
-    agentid = os.getenv("WEIXIN_AGENT_ID")
-    touser = os.getenv("WEIXIN_TO_USER")
+        # 加载环境变量
+        from dotenv import load_dotenv
+        import os
+        load_dotenv(dotenv_path='../.env')
 
-    # 获取当前时间和时间戳
-    info_time = datetime.now()
-    timestamps = round(datetime.timestamp(info_time) * 1000)
-    news_time = info_time.strftime("%Y%m%d")
+        # 获取配置参数
+        city_code = os.getenv('WEATHER_CITY_CODE', '101190601')
+        cookie = os.getenv('WEATHER_COOKIE')
+        news_type = os.getenv('NEWS_TYPE', 'www_www_all_suda_suda')
+        wxid = os.getenv("WEIXIN_CORP_ID")
+        wxsecret = os.getenv("WEIXIN_CORP_SECRET")
+        agentid = os.getenv("WEIXIN_AGENT_ID")
+        touser = os.getenv("WEIXIN_TO_USER")
 
-    # 生成并发送消息
-    content = message_content(city_code, timestamps, info_time, get_news(news_type, news_time), get_sentence())
-    send_message(wxid, wxsecret, agentid, touser, content)
+        # 获取当前时间和时间戳
+        info_time = datetime.now()
+        timestamps = round(datetime.timestamp(info_time) * 1000)
+        news_time = info_time.strftime("%Y%m%d")
+
+        # 生成并发送消息
+        content = message_content(city_code, timestamps, info_time, get_news(news_type, news_time), get_sentence())
+        from send_message import send_message
+        send_message(wxid, wxsecret, agentid, touser, content)
+        print('消息已发送')
+    
+    finally:
+        # 删除锁文件
+        if os.path.exists(lock_file):
+            os.remove(lock_file)

@@ -16,7 +16,7 @@ from Crypto.Cipher import AES
 import xml.etree.cElementTree as ET
 import socket
 
-import ierror
+from . import ierror
 
 
 """

@@ -11,22 +11,15 @@ from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts import PromptTemplate
 
-# 从 dotenv 加载环境变量
-from dotenv import load_dotenv
 
-# 加载 .env 文件
-load_dotenv(dotenv_path='../.env')
-
-# 设置系统变量
-os.environ["OPENAI_API_KEY"] = os.getenv("AI_API_KEY")
-os.environ["OPENAI_API_BASE"] = os.getenv("AI_BASE_URL")
-
-
-def chat_with_llm(FromUserName, question, user_model_data):
+def chat_with_llm(base_url, api_key, model_name, FromUserName, question, user_model_data):
     """
     处理用户与AI的对话，支持多轮对话和记忆管理。
 
     Args:
+        base_url: AI API的基础URL
+        api_key: AI API的密钥
+        model_name: AI模型名称
         FromUserName: 用户标识符，用于区分不同用户的对话
         question: 用户输入的问题
         user_model_data: 全局用户模型数据字典
@@ -39,9 +32,20 @@ def chat_with_llm(FromUserName, question, user_model_data):
     # 检查是否新用户
     if FromUserName not in user_model_data:
         # 初始化ChatGPT模型
+        import os
+        if not api_key:
+            return "错误：API密钥未设置，请检查环境变量 AI_API_KEY"
+        if not model_name:
+            return "错误：模型名称未设置，请检查环境变量 AI_MODEL_NAME"
+
+        if api_key:
+            os.environ["OPENAI_API_KEY"] = api_key
+        if base_url:
+            os.environ["OPENAI_API_BASE"] = base_url
+
         llm = ChatOpenAI(
             temperature=0.7,  # 控制回复的随机性，较低值更保守
-            model=os.getenv("AI_MODEL"),  # 从环境变量获取模型名称
+            model=model_name,  # 从环境变量获取模型名称
         )
 
         # 初始化提示词模板
@@ -75,3 +79,51 @@ def chat_with_llm(FromUserName, question, user_model_data):
     except Exception as e:
         print(f"AI API调用失败: {e}")
         return "抱歉，AI服务暂时不可用，请稍后再试。"
+    
+
+
+if __name__ == '__main__':
+    # 添加防止重复执行的机制
+    import sys
+    import os
+    
+    # 检查是否已经有实例在运行
+    lock_file = "/tmp/chat_with_llm.lock"
+    if sys.platform.startswith("win"):
+        lock_file = os.path.join(os.environ.get("TEMP", "C:\\temp"), "chat_with_llm.lock")
+    
+    if os.path.exists(lock_file):
+        print("AI对话任务已在运行中，退出当前实例。")
+        sys.exit(0)
+    
+    # 创建锁文件
+    try:
+        with open(lock_file, 'w') as f:
+            f.write(str(os.getpid()))
+            
+        # 加载 .env 文件
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path='../.env')
+
+        # 设置系统变量
+        wxid = os.getenv("WEIXIN_CORP_ID")
+        wxsecret = os.getenv("WEIXIN_CORP_SECRET")
+        agentid = os.getenv("WEIXIN_AGENT_ID")
+        touser = os.getenv("WEIXIN_TO_USER")
+        api_key = os.getenv("AI_API_KEY")
+        base_url = os.getenv("AI_BASE_URL")
+        model_name = os.getenv("AI_MODEL_NAME")
+
+        # 调用
+        user_model_data = {}
+        content = chat_with_llm(base_url, api_key, model_name, touser, "nihao", user_model_data)
+    
+        # 测试
+        from send_message import send_message
+        send_message(wxid, wxsecret, agentid, touser, content)
+        print('消息已发送')
+    
+    finally:
+        # 删除锁文件
+        if os.path.exists(lock_file):
+            os.remove(lock_file)

@@ -16,11 +16,6 @@ from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup
 from openai import OpenAI
-from dotenv import load_dotenv
-from .send_message import send_message
-
-# 加载环境变量
-load_dotenv(dotenv_path='../.env')
 
 
 # --- 辅助函数 ---
@@ -266,7 +261,6 @@ def get_emails(start_date, end_date):
     return []
 
 # --- AI 与推送 ---
-
 def summarize_with_ai(emails_list, total_received, total_sent):
     """调用AI API总结邮件内容。"""
     if not emails_list:
@@ -298,7 +292,7 @@ def summarize_with_ai(emails_list, total_received, total_sent):
     # 获取AI配置
     ai_api_key = os.getenv("AI_API_KEY")
     ai_base_url = os.getenv("AI_BASE_URL")
-    ai_model = os.getenv("AI_MODEL")
+    AI_MODEL_NAME = os.getenv("AI_MODEL_NAME")
 
     client = OpenAI(api_key=ai_api_key, base_url=ai_base_url)
     system_prompt = (
@@ -314,7 +308,7 @@ def summarize_with_ai(emails_list, total_received, total_sent):
 
     try:
         response = client.chat.completions.create(
-            model=ai_model,
+            model=AI_MODEL_NAME,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": ai_input_content},
@@ -330,30 +324,55 @@ def summarize_with_ai(emails_list, total_received, total_sent):
 # --- 测试 ---
 
 if __name__ == '__main__':
-
-    print("--- 每日邮件总结任务开始 ---")
-    today = datetime.now().date()
+    # 添加防止重复执行的机制
+    import sys
+    import os
     
-    # 1. 获取邮件
-    # 只获取当天的邮件
-    emails, total_received, total_sent = get_emails(start_date=today, end_date=today)
-
-    # 2. 生成总结
-    if not emails:
-        summary = f"{today.strftime('%Y-%m-%d')} 未收到新邮件。"
-    else:
-        summary = summarize_with_ai(emails, total_received, total_sent)
+    # 检查是否已经有实例在运行
+    lock_file = "/tmp/send_email_summary.lock"
+    if sys.platform.startswith("win"):
+        lock_file = os.path.join(os.environ.get("TEMP", "C:\\temp"), "send_email_summary.lock")
     
-    print("\n--- 生成的总结内容 ---\n")
-    print(summary)
-    print("\n---------------------\n")
-
-    # 3. 推送消息
-    # 获取企业微信配置
-    wxid = os.getenv("WEIXIN_CORP_ID")
-    wxsecret = os.getenv("WEIXIN_CORP_SECRET")
-    agentid = os.getenv("WEIXIN_AGENT_ID")
-    touser = os.getenv("WEIXIN_TO_USER")
-    send_message(wxid, wxsecret, agentid, touser, summary)
+    if os.path.exists(lock_file):
+        print("邮件总结任务已在运行中，退出当前实例。")
+        sys.exit(0)
     
-    print("--- 任务执行完毕 ---")
+    # 创建锁文件
+    try:
+        with open(lock_file, 'w') as f:
+            f.write(str(os.getpid()))
+        
+        print("--- 每日邮件总结任务开始 ---")
+
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path='../.env')
+        # 加载环境变量
+        wxid = os.getenv("WEIXIN_CORP_ID")
+        wxsecret = os.getenv("WEIXIN_CORP_SECRET")
+        agentid = os.getenv("WEIXIN_AGENT_ID")
+        touser = os.getenv("WEIXIN_TO_USER")
+
+        # 1. 获取邮件
+        # 只获取当天的邮件
+        today = datetime.now().date()
+        emails, total_received, total_sent = get_emails(start_date=today, end_date=today)
+
+        # 2. 生成总结
+        if not emails:
+            summary = f"{today.strftime('%Y-%m-%d')} 未收到新邮件。"
+        else:
+            summary = summarize_with_ai(emails, total_received, total_sent)
+    
+        print("\n--- 生成的总结内容 ---\n")
+        print(summary)
+        print("\n---------------------\n")
+
+        # 3. 推送消息
+        from send_message import send_message
+        send_message(wxid, wxsecret, agentid, touser, summary)
+        print('消息已发送')
+    
+    finally:
+        # 删除锁文件
+        if os.path.exists(lock_file):
+            os.remove(lock_file)

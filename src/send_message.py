@@ -50,4 +50,5 @@ if __name__ == '__main__':
     touser = os.getenv("WEIXIN_TO_USER")
 
     # 发送消息测试
-    send_message('hello,world!')
+    send_message(wxid, wxsecret, agentid, touser, 'hello,world!')
+    print('消息已发送')
