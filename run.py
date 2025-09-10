@@ -103,12 +103,12 @@ def wechat():
             # content = EventKey
             if Event=='click' and EventKey == '#sendmsg#_0#7599827067206067':
                     print("开始执行天气推送...")
-                    os.system('python src/send_weather_message.py')
+                    os.system(f'python src/send_weather_message.py {FromUserName}')
                     content = ""
                     print("天气推送执行成功");
             elif Event=='click' and EventKey == '#sendmsg#_1#7599827067206068':
                     print("开始执行邮件总结...")
-                    os.system('python src/send_email_summary.py')
+                    os.system(f'python src/send_email_summary.py {FromUserName}')
                     content = ""
                     print("邮件总结执行成功");
 

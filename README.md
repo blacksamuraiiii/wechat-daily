@@ -125,11 +125,11 @@ python run.py
 
 ### 天气推送功能
 
-![天气推送](screenshots/微信图片_天气推送.png)
+<img src="screenshots/微信图片_天气推送.png" alt="天气推送" width="400">
 
 ### 邮件总结功能
 
-![邮件总结](screenshots/微信图片_邮件总结.png)
+<img src="screenshots/微信图片_邮件总结.png" alt="邮件总结" width="400">
 
 ## 📖 使用指南
 
@@ -164,6 +164,16 @@ python src/send_email_summary.py
 #### AI对话
 
 在企业微信中直接发送消息即可触发AI对话。
+
+#### 消息推送
+
+```bash
+# 使用环境变量中配置的用户
+python src/send_message.py
+
+# 指定推送用户（命令行参数优先）
+python src/send_message.py "HuangWeiShen"
+```
 
 ### 定时任务设置
 

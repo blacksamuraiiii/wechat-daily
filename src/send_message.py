@@ -58,13 +58,21 @@ def send_message(wxid, wxsecret, agentid, touser, content):
 
 if __name__ == '__main__':
     from dotenv import load_dotenv
-    import os       
+    import os
+    import sys
+    
     # 加载 .env 文件
     load_dotenv(dotenv_path='../.env')
     wxid = os.getenv("WEIXIN_CORP_ID")
     wxsecret = os.getenv("WEIXIN_CORP_SECRET")
     agentid = os.getenv("WEIXIN_AGENT_ID")
-    touser = os.getenv("WEIXIN_TO_USER")
-
+    
+    # 检查是否提供了命令行参数
+    if len(sys.argv) > 1:
+        touser = sys.argv[1]
+    else:
+        # 如果没有提供命令行参数，则从环境变量读取
+        touser = os.getenv("WEIXIN_TO_USER")
+    
     # 发送消息测试
     send_message(wxid, wxsecret, agentid, touser, 'hello,world!')

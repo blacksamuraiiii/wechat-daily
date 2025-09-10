@@ -182,6 +182,13 @@ if __name__ == '__main__':
         import os
         load_dotenv(dotenv_path='../.env')
 
+        # 用户名入参
+        if len(sys.argv) > 1:
+            touser = sys.argv[1]
+        else:
+            # 如果没有提供命令行参数，则使用默认用户
+            touser = "HuangWeiShen"  # 默认用户
+
         # 获取配置参数
         city_code = os.getenv('WEATHER_CITY_CODE', '101190601')
         cookie = os.getenv('WEATHER_COOKIE')
@@ -189,7 +196,7 @@ if __name__ == '__main__':
         wxid = os.getenv("WEIXIN_CORP_ID")
         wxsecret = os.getenv("WEIXIN_CORP_SECRET")
         agentid = os.getenv("WEIXIN_AGENT_ID")
-        touser = os.getenv("WEIXIN_TO_USER")
+        # touser = os.getenv("WEIXIN_TO_USER")
 
         # 获取当前时间和时间戳
         info_time = datetime.now()

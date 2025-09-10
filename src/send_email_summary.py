@@ -10,6 +10,8 @@ import imaplib
 import email
 import socket
 import re
+import sys
+import json
 from email.header import decode_header
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timedelta
@@ -131,19 +133,13 @@ def get_body_from_msg(msg):
         return soup.get_text(separator='\n', strip=True)
     return ""
 
-def get_emails(start_date, end_date):
+def get_emails(imap_server, imap_port, user_email, password, start_date, end_date,MAX_EMAILS_TO_SCAN=200):
     """
     通过IMAP获取并解析指定日期范围内的邮件。
     采用两阶段获取策略，避免下载大型邮件导致卡死。
     返回邮件列表和统计信息。
     (已最终修复日期获取逻辑)
     """
-    # 获取配置参数
-    imap_server = os.getenv("IMAP_SERVER")
-    imap_port = int(os.getenv("IMAP_PORT", 993))
-    user_email = os.getenv("USER_EMAIL")
-    password = os.getenv("PASSWORD")
-    max_emails_to_scan = int(os.getenv("MAX_EMAILS_TO_SCAN", 200))
 
     print(f"正在连接到IMAP服务器 {imap_server}...")
     original_timeout = socket.getdefaulttimeout()
@@ -171,7 +167,7 @@ def get_emails(start_date, end_date):
             print("收件箱中没有任何邮件。")
             return []
 
-        target_ids_to_scan = email_ids[-max_emails_to_scan:]
+        target_ids_to_scan = email_ids[-MAX_EMAILS_TO_SCAN:]
         print(f"收件箱共有{len(email_ids)}封邮件, 准备扫描最近的 {len(target_ids_to_scan)} 封。")
         
         filtered_ids = []
@@ -251,10 +247,13 @@ def get_emails(start_date, end_date):
  
     except imaplib.IMAP4.error as e:
         print(f"[错误] IMAP 错误: {e}")
+        return [], 0, 0
     except socket.timeout:
         print("[错误] 连接超时，IMAP服务器长时间无响应。")
+        return [], 0, 0
     except Exception as e:
         print(f"[错误] 发生未知错误: {e}")
+        return [], 0, 0
     finally:
         if mail:
             try:
@@ -264,7 +263,6 @@ def get_emails(start_date, end_date):
             except Exception:
                 pass
         socket.setdefaulttimeout(original_timeout)
-    return []
 
 # --- AI 与推送 ---
 def summarize_with_ai(emails_list, total_received, total_sent):
@@ -276,7 +274,11 @@ def summarize_with_ai(emails_list, total_received, total_sent):
 
     # 过滤掉自己发的邮件，只分析收到的邮件
     user_email = os.getenv("USER_EMAIL")
-    filtered_emails = [mail for mail in emails_list if user_email.lower() not in mail.get('from', '').lower()]
+    if user_email:
+        filtered_emails = [mail for mail in emails_list if user_email.lower() not in mail.get('from', '').lower()]
+    else:
+        # 如果没有设置用户邮箱，则分析所有邮件
+        filtered_emails = emails_list
 
     if not filtered_emails:
         return f"今日共收到 {total_received} 封邮件，发送 {total_sent} 封邮件。无需要分析的外部邮件。"
@@ -333,6 +335,7 @@ if __name__ == '__main__':
     # 添加防止重复执行的机制
     import sys
     import os
+    import ast
     
     # 检查是否已经有实例在运行
     lock_file = "/tmp/send_email_summary.lock"
@@ -348,20 +351,38 @@ if __name__ == '__main__':
         with open(lock_file, 'w') as f:
             f.write(str(os.getpid()))
         
-        print("--- 每日邮件总结任务开始 ---")
-
-        from dotenv import load_dotenv
-        load_dotenv(dotenv_path='../.env')
-        # 加载环境变量
-        wxid = os.getenv("WEIXIN_CORP_ID")
-        wxsecret = os.getenv("WEIXIN_CORP_SECRET")
-        agentid = os.getenv("WEIXIN_AGENT_ID")
-        touser = os.getenv("WEIXIN_TO_USER")
+        print("--- 每日邮件总结任务开始 ---")   
 
         # 1. 获取邮件
-        # 只获取当天的邮件
+        # 邮箱配置,默认只收今天的邮件
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path='../.env')
+        
+        # 用户名入参
+        if len(sys.argv) > 1:
+            touser = sys.argv[1]
+        else:
+            # 如果没有提供命令行参数，则使用默认用户
+            touser = "HuangWeiShen"  # 默认用户
+        
+        # 从环境变量中获取邮箱配置字典
+        email_dict_str = os.getenv("EMAIL_DICT")
+        email_dict = json.loads(email_dict_str) if email_dict_str else {}
+        
+        # 根据用户名获取对应的邮箱配置
+        if touser in email_dict:
+            email_config = email_dict[touser]
+            imap_server = email_config["IMAP_SERVER"]
+            imap_port = email_config["IMAP_PORT"]
+            user_email = email_config["USER_EMAIL"]
+            password = email_config["PASSWORD"]
+        else:
+            print(f"未找到用户 {touser} 的邮箱配置，退出。")
+            exit(1)
+
+        max_emails = int(os.getenv("MAX_EMAILS_TO_SCAN", 200))
         today = datetime.now().date()
-        emails, total_received, total_sent = get_emails(start_date=today, end_date=today)
+        emails, total_received, total_sent = get_emails(imap_server, imap_port, user_email, password, start_date=today, end_date=today,  MAX_EMAILS_TO_SCAN=max_emails)
 
         # 2. 生成总结
         week_dict = {
@@ -391,6 +412,11 @@ if __name__ == '__main__':
 
         # 3. 推送消息
         from send_message import send_message
+        # 加载微信配置
+        wxid = os.getenv("WEIXIN_CORP_ID")
+        wxsecret = os.getenv("WEIXIN_CORP_SECRET")
+        agentid = os.getenv("WEIXIN_AGENT_ID")
+        # touser = os.getenv("WEIXIN_TO_USER")
         send_message(wxid, wxsecret, agentid, touser, content)
     
     finally:
