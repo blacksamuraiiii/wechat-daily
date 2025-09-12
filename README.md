@@ -107,7 +107,23 @@ AI_MODEL_NAME = "gpt-4o-mini"
 
 ```env
 # 多用户邮箱配置，用于邮件总结功能
-EMAIL_DICT="{\"User1\": {\"IMAP_SERVER\": \"imap.163.com\",\"IMAP_PORT\": 993,\"USER_EMAIL\": \"user1@163.com\",\"PASSWORD\": \"password1\",\"EMAIL_BLACKLIST\": \"spam1@example.com,junk1@domain.com\"},\"User2\": {\"IMAP_SERVER\": \"imap.163.com\",\"IMAP_PORT\": 993,\"USER_EMAIL\": \"user2@163.com\",\"PASSWORD\": \"password2\",\"EMAIL_BLACKLIST\": \"\"}}"
+EMAIL_DICT="{
+  \"User1\": {
+    \"IMAP_SERVER\": \"imap.163.com\",
+    \"IMAP_PORT\": 993,
+    \"USER_EMAIL\": \"user1@163.com\",
+    \"PASSWORD\": \"password1\",
+    \"EMAIL_BLACKLIST\": \"spam1@example.com,junk1@domain.com\"
+  },
+  \"User2\": {
+    \"IMAP_SERVER\": \"imap.163.com\",
+    \"IMAP_PORT\": 993,
+    \"USER_EMAIL\": \"user2@163.com\",
+    \"PASSWORD\": \"password2\",
+    \"EMAIL_BLACKLIST\": \"\"
+  }
+}"
+MAX_EMAILS_TO_SCAN = 50  # 邮件扫描上限，避免处理过多历史邮件
 ```
 
 ### 5. 运行应用
@@ -244,9 +260,10 @@ while True:
 
 ### 邮箱配置
 
-| 参数               | 说明                  | 示例                                  |
-| ------------------ | --------------------- | ------------------------------------- |
-| `EMAIL_DICT`       | 多用户邮箱字典配置    | JSON格式的用户配置字典，包含用户级黑名单 |
+| 参数                   | 说明                  | 示例                                  |
+| ---------------------- | --------------------- | ------------------------------------- |
+| `EMAIL_DICT`           | 多用户邮箱字典配置    | JSON格式的用户配置字典，包含用户级黑名单 |
+| `MAX_EMAILS_TO_SCAN`   | 邮件扫描上限          | 50 (避免处理过多历史邮件)               |
 
 **字典配置格式说明：**
 ```json
@@ -265,6 +282,40 @@ while True:
 - 每个用户可以配置独立的发件人黑名单
 - 多个邮箱地址用逗号分隔
 - 空字符串表示不启用黑名单功能
+
+**扫描限制说明：**
+- `MAX_EMAILS_TO_SCAN` 限制每次扫描的邮件数量，避免处理过多历史邮件导致性能问题
+- 建议设置为 50-200 之间，根据邮件量调整
+
+### 天气配置
+
+| 参数                   | 说明           | 获取方式         |
+| ---------------------- | -------------- | ---------------- |
+| `WEATHER_CITY_CODE`    | 城市代码       | [weather.com.cn查询](http://www.weather.com.cn/) |
+| `WEATHER_COOKIE`       | 天气API Cookie | 见下方获取方法   |
+| `NEWS_TYPE`            | 新闻类型       | 可选，默认为热点新闻 |
+
+#### 天气网站Cookie获取方法
+
+天气数据需要从[weather.com.cn](http://www.weather.com.cn/)获取Cookie，获取步骤如下：
+
+1. **访问天气网站**
+   ```
+   http://www.weather.com.cn/
+   ```
+
+2. **获取Cookie**
+   - 使用Chrome或Firefox浏览器打开天气网站
+   - 按F12打开开发者工具
+   - 切换到"网络"(Network)选项卡
+   - 刷新页面，找到weather.com.cn的请求
+   - 在请求头中找到Cookie值，复制完整的Cookie字符串
+
+3. **配置使用**
+   - 将获取的Cookie填入`.env`文件的`WEATHER_COOKIE`变量
+   - 确保Cookie包含必要的认证信息
+
+**注意：** Cookie有有效期，如遇到天气获取失败，请重新获取Cookie。
 
 ## 🐛 故障排除
 

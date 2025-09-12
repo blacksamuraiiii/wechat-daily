@@ -167,6 +167,7 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
 
     emails_data = []
     mail = None
+    total_blacklist = 0  # 初始化黑名单计数器
     try:
         mail = imaplib.IMAP4_SSL(imap_server, imap_port)
         mail.login(user_email, password)
@@ -180,12 +181,12 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
         status, messages = mail.search(None, search_criteria)
         if status != 'OK':
             print("搜索邮件失败!")
-            return []
+            return [], 0, 0, 0
  
         email_ids = messages[0].split()
         if not email_ids:
             print("收件箱中没有任何邮件。")
-            return []
+            return [], 0, 0, 0
 
         target_ids_to_scan = email_ids[-MAX_EMAILS_TO_SCAN:]
         print(f"收件箱共有{len(email_ids)}封邮件, 准备扫描最近的 {len(target_ids_to_scan)} 封。")
@@ -226,7 +227,7 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
  
         if not filtered_ids:
             print("\n在指定日期范围内没有找到符合条件的邮件。")
-            return []
+            return [], 0, 0, 0
             
         print(f"\n--- 阶段1完成: 找到 {len(filtered_ids)} 封符合条件的邮件 ---\n")
  
@@ -255,6 +256,7 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
                 # 检查发件人是否在黑名单中
                 from_email = email_content['from'].lower()
                 is_blacklisted = any(black_email in from_email for black_email in blacklist_emails)
+                total_blacklist += 1 if is_blacklisted else 0
                 
                 if is_blacklisted:
                     print(f"  - 跳过黑名单发件人邮件: {email_content['from']} (主题: {email_content['subject']})")
@@ -273,17 +275,17 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
         total_received = len(received_data)
         total_sent = len(emails_data) - total_received
 
-        return received_data, total_received, total_sent
+        return received_data, total_received, total_sent, total_blacklist
  
     except imaplib.IMAP4.error as e:
         print(f"[错误] IMAP 错误: {e}")
-        return [], 0, 0
+        return [], 0, 0, 0
     except socket.timeout:
         print("[错误] 连接超时，IMAP服务器长时间无响应。")
-        return [], 0, 0
+        return [], 0, 0, 0
     except Exception as e:
         print(f"[错误] 发生未知错误: {e}")
-        return [], 0, 0
+        return [], 0, 0, 0
     finally:
         if mail:
             try:
@@ -295,7 +297,7 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
         socket.setdefaulttimeout(original_timeout)
 
 # --- AI 与推送 ---
-def summarize_with_ai(emails_list,total_received, total_sent):
+def summarize_with_ai(emails_list,total_received, total_sent, total_blacklist):
     """调用AI API总结邮件内容。"""
     if not emails_list:
         return f"今日共发送 {total_sent} 封邮件，收到 {total_received} 封邮件。无需要分析的外部邮件。"
@@ -325,7 +327,7 @@ def summarize_with_ai(emails_list,total_received, total_sent):
     system_prompt = (
         f"你是一个专业的邮件摘要助手。请根据以下邮件内容，为我生成一份今日（{datetime.now().date().strftime('%Y-%m-%d')}）的邮件摘要报告。"
         "报告格式如下：\n\n"
-        f"今日共发送 {total_sent} 封邮件，收到 {total_received} 封邮件，其中x封需回复\n\n"
+        f"今日共收到邮件{total_received} 封，发送 {total_sent} 封，黑名单 {total_blacklist} 封，其中x封需回复\n\n"
         "******邮件内容******\n\n"
         "1. 【邮件主题】\n   - 发件人: [发件人姓名]\n   - 核心内容: [对邮件内容的1-2句话精炼总结，突出要点和待办事项]\n\n"
         "2. 【另一封邮件主题】\n   - 发件人: [发件人姓名]\n   - 核心内容: [总结...]\n\n"
@@ -403,7 +405,7 @@ if __name__ == '__main__':
 
         max_emails = int(os.getenv("MAX_EMAILS_TO_SCAN", 200))
         today = datetime.now().date()
-        emails, total_received, total_sent = get_emails(imap_server, imap_port, user_email, password, start_date=today, end_date=today,  MAX_EMAILS_TO_SCAN=max_emails, blacklist_emails=blacklist_emails)
+        emails, total_received, total_sent, total_blacklist = get_emails(imap_server, imap_port, user_email, password, start_date=today, end_date=today,  MAX_EMAILS_TO_SCAN=max_emails, blacklist_emails=blacklist_emails)
 
         # 2. 生成总结
         week_dict = {
@@ -424,7 +426,7 @@ if __name__ == '__main__':
             content = (
                 f"{day}\n\n"
                 "********总结********\n\n"
-                f"{summarize_with_ai(emails, total_received, total_sent)}"
+                f"{summarize_with_ai(emails, total_received, total_sent, total_blacklist)}"
             )
 
         print("\n--- 生成的总结内容 ---\n")
