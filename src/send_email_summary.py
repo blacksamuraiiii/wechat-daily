@@ -265,15 +265,13 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
         socket.setdefaulttimeout(original_timeout)
 
 # --- AI 与推送 ---
-def summarize_with_ai(emails_list, total_received, total_sent):
+def summarize_with_ai(emails_list,user_email, total_received, total_sent):
     """调用AI API总结邮件内容。"""
     if not emails_list:
         return ""
 
     print("正在准备内容并调用AI进行总结...")
 
-    # 过滤掉自己发的邮件，只分析收到的邮件
-    user_email = os.getenv("USER_EMAIL")
     if user_email:
         filtered_emails = [mail for mail in emails_list if user_email.lower() not in mail.get('from', '').lower()]
     else:
@@ -403,7 +401,7 @@ if __name__ == '__main__':
             content = (
                 f"{day}\n\n"
                 "*************************\n\n"
-                f"{summarize_with_ai(emails, total_received, total_sent)}"
+                f"{summarize_with_ai(emails, user_email, total_received, total_sent)}"
             )
 
         print("\n--- 生成的总结内容 ---\n")
