@@ -269,7 +269,7 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
 def summarize_with_ai(emails_list,total_received, total_sent):
     """调用AI API总结邮件内容。"""
     if not emails_list:
-        return f"今日共收到 {total_received} 封邮件，发送 {total_sent} 封邮件。无需要分析的外部邮件。"
+        return f"今日共发送 {total_sent} 封邮件，收到 {total_received} 封邮件。无需要分析的外部邮件。"
 
     print("正在准备内容并调用AI进行总结...")
 
@@ -296,8 +296,8 @@ def summarize_with_ai(emails_list,total_received, total_sent):
     system_prompt = (
         f"你是一个专业的邮件摘要助手。请根据以下邮件内容，为我生成一份今日（{datetime.now().date().strftime('%Y-%m-%d')}）的邮件摘要报告。"
         "报告格式如下：\n\n"
-        f"今日共收到 {total_received} 封邮件，发送 {total_sent} 封邮件。\n"
-        f"以下是需要分析的 {total_received} 封外部邮件摘要，其中x封需回复：\n\n"
+        f"今日共发送 {total_sent} 封邮件，收到 {total_received} 封邮件，其中x封需回复：\n\n"
+        "***********邮件内容**********\n\n"
         "1. 【邮件主题】\n   - 发件人: [发件人姓名]\n   - 核心内容: [对邮件内容的1-2句话精炼总结，突出要点和待办事项]\n\n"
         "2. 【另一封邮件主题】\n   - 发件人: [发件人姓名]\n   - 核心内容: [总结...]\n\n"
         "如果邮件内容需要回复或处理，请在核心内容最后加上提醒，例如 '(需回复)'。"
@@ -392,7 +392,7 @@ if __name__ == '__main__':
         else:
             content = (
                 f"{day}\n\n"
-                "*************************\n\n"
+                "***********总结**********\n"
                 f"{summarize_with_ai(emails, total_received, total_sent)}"
             )
 
