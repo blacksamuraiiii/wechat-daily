@@ -106,11 +106,21 @@ AI_MODEL_NAME = "gpt-4o-mini"
 #### 邮箱配置
 
 ```env
-# 用于邮件总结功能
-IMAP_SERVER = "imap.163.com"
-IMAP_PORT = 993
-USER_EMAIL = "your-email@163.com"
-PASSWORD = "your-password"
+# 多用户邮箱配置，用于邮件总结功能
+EMAIL_DICT="{
+  \"User1\": {
+    \"IMAP_SERVER\": \"imap.163.com\",
+    \"IMAP_PORT\": 993,
+    \"USER_EMAIL\": \"user1@163.com\",
+    \"PASSWORD\": \"password1\"
+  },
+  \"User2\": {
+    \"IMAP_SERVER\": \"imap.163.com\",
+    \"IMAP_PORT\": 993,
+    \"USER_EMAIL\": \"user2@163.com\",
+    \"PASSWORD\": \"password2\"
+  }
+}"
 EMAIL_BLACKLIST = "spam@example.com,junk@domain.com"  # 可选：邮件发件人黑名单
 ```
 
@@ -249,11 +259,20 @@ while True:
 
 | 参数               | 说明                  | 示例                                  |
 | ------------------ | --------------------- | ------------------------------------- |
-| `IMAP_SERVER`     | IMAP服务器            | imap.163.com                          |
-| `IMAP_PORT`       | IMAP端口              | 993                                   |
-| `USER_EMAIL`      | 邮箱地址              | user@163.com                          |
-| `PASSWORD`        | 邮箱密码              | 密码或授权码                          |
+| `EMAIL_DICT`       | 多用户邮箱字典配置    | JSON格式的用户配置字典                 |
 | `EMAIL_BLACKLIST` | 邮件发件人黑名单（可选）| spam@example.com,junk@domain.com       |
+
+**字典配置格式说明：**
+```json
+{
+  "用户名": {
+    "IMAP_SERVER": "imap服务器地址",
+    "IMAP_PORT": 993,
+    "USER_EMAIL": "邮箱地址",
+    "PASSWORD": "邮箱密码"
+  }
+}
+```
 
 ## 🐛 故障排除
 
