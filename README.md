@@ -107,21 +107,7 @@ AI_MODEL_NAME = "gpt-4o-mini"
 
 ```env
 # 多用户邮箱配置，用于邮件总结功能
-EMAIL_DICT="{
-  \"User1\": {
-    \"IMAP_SERVER\": \"imap.163.com\",
-    \"IMAP_PORT\": 993,
-    \"USER_EMAIL\": \"user1@163.com\",
-    \"PASSWORD\": \"password1\"
-  },
-  \"User2\": {
-    \"IMAP_SERVER\": \"imap.163.com\",
-    \"IMAP_PORT\": 993,
-    \"USER_EMAIL\": \"user2@163.com\",
-    \"PASSWORD\": \"password2\"
-  }
-}"
-EMAIL_BLACKLIST = "spam@example.com,junk@domain.com"  # 可选：邮件发件人黑名单
+EMAIL_DICT="{\"User1\": {\"IMAP_SERVER\": \"imap.163.com\",\"IMAP_PORT\": 993,\"USER_EMAIL\": \"user1@163.com\",\"PASSWORD\": \"password1\",\"EMAIL_BLACKLIST\": \"spam1@example.com,junk1@domain.com\"},\"User2\": {\"IMAP_SERVER\": \"imap.163.com\",\"IMAP_PORT\": 993,\"USER_EMAIL\": \"user2@163.com\",\"PASSWORD\": \"password2\",\"EMAIL_BLACKLIST\": \"\"}}"
 ```
 
 ### 5. 运行应用
@@ -174,7 +160,8 @@ python src/send_email_summary.py
 ```
 
 **黑名单功能说明：**
-- 系统会自动过滤来自黑名单中邮箱地址的邮件
+- 现在支持用户级别的邮件黑名单配置
+- 每个用户可以设置独立的发件人黑名单
 - 支持配置多个邮箱地址，用逗号分隔
 - 在生成邮件总结时，被黑名单的邮件不会被分析和统计
 
@@ -259,8 +246,7 @@ while True:
 
 | 参数               | 说明                  | 示例                                  |
 | ------------------ | --------------------- | ------------------------------------- |
-| `EMAIL_DICT`       | 多用户邮箱字典配置    | JSON格式的用户配置字典                 |
-| `EMAIL_BLACKLIST` | 邮件发件人黑名单（可选）| spam@example.com,junk@domain.com       |
+| `EMAIL_DICT`       | 多用户邮箱字典配置    | JSON格式的用户配置字典，包含用户级黑名单 |
 
 **字典配置格式说明：**
 ```json
@@ -269,10 +255,16 @@ while True:
     "IMAP_SERVER": "imap服务器地址",
     "IMAP_PORT": 993,
     "USER_EMAIL": "邮箱地址",
-    "PASSWORD": "邮箱密码"
+    "PASSWORD": "邮箱密码",
+    "EMAIL_BLACKLIST": "发件人黑名单(可选)"
   }
 }
 ```
+
+**黑名单配置说明：**
+- 每个用户可以配置独立的发件人黑名单
+- 多个邮箱地址用逗号分隔
+- 空字符串表示不启用黑名单功能
 
 ## 🐛 故障排除
 

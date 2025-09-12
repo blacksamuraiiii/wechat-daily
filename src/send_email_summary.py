@@ -395,14 +395,14 @@ if __name__ == '__main__':
             imap_port = email_config["IMAP_PORT"]
             user_email = email_config["USER_EMAIL"]
             password = email_config["PASSWORD"]
+            # 获取用户级别的黑名单配置
+            blacklist_emails = email_config.get("EMAIL_BLACKLIST", "")
         else:
             print(f"未找到用户 {touser} 的邮箱配置，退出。")
             exit(1)
 
         max_emails = int(os.getenv("MAX_EMAILS_TO_SCAN", 200))
         today = datetime.now().date()
-        # 获取发件人黑名单配置
-        blacklist_emails = os.getenv("EMAIL_BLACKLIST", "")
         emails, total_received, total_sent = get_emails(imap_server, imap_port, user_email, password, start_date=today, end_date=today,  MAX_EMAILS_TO_SCAN=max_emails, blacklist_emails=blacklist_emails)
 
         # 2. 生成总结
