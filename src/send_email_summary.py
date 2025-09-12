@@ -133,11 +133,11 @@ def get_body_from_msg(msg):
         return soup.get_text(separator='\n', strip=True)
     return ""
 
-def get_emails(imap_server, imap_port, user_email, password, start_date, end_date,MAX_EMAILS_TO_SCAN=200):
+def get_emails(imap_server, imap_port, user_email, password, start_date, end_date, MAX_EMAILS_TO_SCAN=200):
     """
     通过IMAP获取并解析指定日期范围内的邮件。
     采用两阶段获取策略，避免下载大型邮件导致卡死。
-    返回邮件列表和统计信息。
+    返回收到的邮件列表和统计信息（收到的邮件数、发送的邮件数）。
     (已最终修复日期获取逻辑)
     """
 
@@ -239,11 +239,12 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
  
         print(f"\n--- 阶段2完成: 成功处理了 {len(emails_data)} 封邮件。---")
 
-        # 统计邮件数量
-        total_sent = sum(1 for mail in emails_data if user_email.lower() in mail.get('from', '').lower())
-        total_received = len(emails_data) - total_sent
+        # 统计邮件数
+        received_data = [mail for mail in emails_data if user_email.lower() not in mail.get('from', '').lower()]
+        total_received = len(received_data)
+        total_sent = len(emails_data) - total_received
 
-        return emails_data, total_received, total_sent
+        return received_data, total_received, total_sent
  
     except imaplib.IMAP4.error as e:
         print(f"[错误] IMAP 错误: {e}")
@@ -265,24 +266,15 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
         socket.setdefaulttimeout(original_timeout)
 
 # --- AI 与推送 ---
-def summarize_with_ai(emails_list,user_email, total_received, total_sent):
+def summarize_with_ai(emails_list,total_received, total_sent):
     """调用AI API总结邮件内容。"""
     if not emails_list:
-        return ""
+        return f"今日共收到 {total_received} 封邮件，发送 {total_sent} 封邮件。无需要分析的外部邮件。"
 
     print("正在准备内容并调用AI进行总结...")
 
-    if user_email:
-        filtered_emails = [mail for mail in emails_list if user_email.lower() not in mail.get('from', '').lower()]
-    else:
-        # 如果没有设置用户邮箱，则分析所有邮件
-        filtered_emails = emails_list
-
-    if not filtered_emails:
-        return f"今日共收到 {total_received} 封邮件，发送 {total_sent} 封邮件。无需要分析的外部邮件。"
-
     formatted_emails = []
-    for i, mail in enumerate(filtered_emails):
+    for i, mail in enumerate(emails_list):
         content_snippet = mail.get('content', '')[:200]
         if len(mail.get('content', '')) > 200:
             content_snippet += '...'
@@ -305,7 +297,7 @@ def summarize_with_ai(emails_list,user_email, total_received, total_sent):
         f"你是一个专业的邮件摘要助手。请根据以下邮件内容，为我生成一份今日（{datetime.now().date().strftime('%Y-%m-%d')}）的邮件摘要报告。"
         "报告格式如下：\n\n"
         f"今日共收到 {total_received} 封邮件，发送 {total_sent} 封邮件。\n"
-        f"以下是需要分析的 {len(filtered_emails)} 封外部邮件摘要，其中x封需回复：\n\n"
+        f"以下是需要分析的 {total_received} 封外部邮件摘要，其中x封需回复：\n\n"
         "1. 【邮件主题】\n   - 发件人: [发件人姓名]\n   - 核心内容: [对邮件内容的1-2句话精炼总结，突出要点和待办事项]\n\n"
         "2. 【另一封邮件主题】\n   - 发件人: [发件人姓名]\n   - 核心内容: [总结...]\n\n"
         "如果邮件内容需要回复或处理，请在核心内容最后加上提醒，例如 '(需回复)'。"
@@ -401,7 +393,7 @@ if __name__ == '__main__':
             content = (
                 f"{day}\n\n"
                 "*************************\n\n"
-                f"{summarize_with_ai(emails, user_email, total_received, total_sent)}"
+                f"{summarize_with_ai(emails, total_received, total_sent)}"
             )
 
         print("\n--- 生成的总结内容 ---\n")
