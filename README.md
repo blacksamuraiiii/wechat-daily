@@ -20,6 +20,7 @@
 
 - **邮件统计** - 自动统计收发邮件数量（已优化：正确区分收到和发送的邮件）
 - **智能过滤** - 过滤自己发的邮件，避免重复分析
+- **黑名单过滤** - 支持邮件发件人黑名单，自动过滤指定发件人的邮件
 - **记忆管理** - 支持多用户对话记忆
 - **错误处理** - 完善的异常处理和重试机制（已增强）
 - **配置管理** - 基于环境变量的灵活配置
@@ -110,6 +111,7 @@ IMAP_SERVER = "imap.163.com"
 IMAP_PORT = 993
 USER_EMAIL = "your-email@163.com"
 PASSWORD = "your-password"
+EMAIL_BLACKLIST = "spam@example.com,junk@domain.com"  # 可选：邮件发件人黑名单
 ```
 
 ### 5. 运行应用
@@ -160,6 +162,11 @@ python src/send_weather_message.py
 ```bash
 python src/send_email_summary.py
 ```
+
+**黑名单功能说明：**
+- 系统会自动过滤来自黑名单中邮箱地址的邮件
+- 支持配置多个邮箱地址，用逗号分隔
+- 在生成邮件总结时，被黑名单的邮件不会被分析和统计
 
 #### AI对话
 
@@ -240,12 +247,13 @@ while True:
 
 ### 邮箱配置
 
-| 参数            | 说明       | 示例         |
-| --------------- | ---------- | ------------ |
-| `IMAP_SERVER` | IMAP服务器 | imap.163.com |
-| `IMAP_PORT`   | IMAP端口   | 993          |
-| `USER_EMAIL`  | 邮箱地址   | user@163.com |
-| `PASSWORD`    | 邮箱密码   | 密码或授权码 |
+| 参数               | 说明                  | 示例                                  |
+| ------------------ | --------------------- | ------------------------------------- |
+| `IMAP_SERVER`     | IMAP服务器            | imap.163.com                          |
+| `IMAP_PORT`       | IMAP端口              | 993                                   |
+| `USER_EMAIL`      | 邮箱地址              | user@163.com                          |
+| `PASSWORD`        | 邮箱密码              | 密码或授权码                          |
+| `EMAIL_BLACKLIST` | 邮件发件人黑名单（可选）| spam@example.com,junk@domain.com       |
 
 ## 🐛 故障排除
 

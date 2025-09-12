@@ -133,17 +133,37 @@ def get_body_from_msg(msg):
         return soup.get_text(separator='\n', strip=True)
     return ""
 
-def get_emails(imap_server, imap_port, user_email, password, start_date, end_date, MAX_EMAILS_TO_SCAN=200):
+def get_emails(imap_server, imap_port, user_email, password, start_date, end_date, MAX_EMAILS_TO_SCAN=50, blacklist_emails=None):
     """
     通过IMAP获取并解析指定日期范围内的邮件。
     采用两阶段获取策略，避免下载大型邮件导致卡死。
     返回收到的邮件列表和统计信息（收到的邮件数、发送的邮件数）。
     (已最终修复日期获取逻辑)
+    
+    Args:
+        imap_server: IMAP服务器地址
+        imap_port: IMAP服务器端口
+        user_email: 用户邮箱地址
+        password: 邮箱密码
+        start_date: 开始日期
+        end_date: 结束日期
+        MAX_EMAILS_TO_SCAN: 最大扫描邮件数量
+        blacklist_emails: 发件人黑名单列表，如果包含则过滤掉
     """
 
     print(f"正在连接到IMAP服务器 {imap_server}...")
     original_timeout = socket.getdefaulttimeout()
     socket.setdefaulttimeout(60)
+    
+    # 处理黑名单配置
+    if blacklist_emails is None:
+        blacklist_emails = []
+    elif isinstance(blacklist_emails, str):
+        # 如果是字符串，按逗号分割
+        blacklist_emails = [email.strip().lower() for email in blacklist_emails.split(',') if email.strip()]
+    
+    if blacklist_emails:
+        print(f"已配置发件人黑名单: {', '.join(blacklist_emails)}")
 
     emails_data = []
     mail = None
@@ -231,6 +251,15 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
                     'date': msg['date'],
                     'content': main_content,
                 }
+                
+                # 检查发件人是否在黑名单中
+                from_email = email_content['from'].lower()
+                is_blacklisted = any(black_email in from_email for black_email in blacklist_emails)
+                
+                if is_blacklisted:
+                    print(f"  - 跳过黑名单发件人邮件: {email_content['from']} (主题: {email_content['subject']})")
+                    continue
+                
                 emails_data.append(email_content)
                 print(f"  - 已处理邮件: 主题='{email_content['subject']}'")
             except Exception as e:
@@ -372,7 +401,9 @@ if __name__ == '__main__':
 
         max_emails = int(os.getenv("MAX_EMAILS_TO_SCAN", 200))
         today = datetime.now().date()
-        emails, total_received, total_sent = get_emails(imap_server, imap_port, user_email, password, start_date=today, end_date=today,  MAX_EMAILS_TO_SCAN=max_emails)
+        # 获取发件人黑名单配置
+        blacklist_emails = os.getenv("EMAIL_BLACKLIST", "")
+        emails, total_received, total_sent = get_emails(imap_server, imap_port, user_email, password, start_date=today, end_date=today,  MAX_EMAILS_TO_SCAN=max_emails, blacklist_emails=blacklist_emails)
 
         # 2. 生成总结
         week_dict = {
