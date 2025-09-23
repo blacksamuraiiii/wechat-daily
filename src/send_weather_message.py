@@ -22,7 +22,7 @@ def weather_info(cookie, city_code, timestamps):
     Returns:
         str: 格式化的天气信息
     """
-    print("--- 1.正在获取天气信息 ---")
+    print("--- 正在获取天气信息 ---")
     w_headers = {
         "Accept": "*/*",
         "Accept-Encoding": "gzip, deflate",
@@ -72,7 +72,7 @@ def get_news(news_type, news_time):
     Returns:
         list: 新闻列表
     """
-    print("--- 2.正在获取新闻信息 ---")
+    print("--- 正在获取新闻信息 ---")
     news_headers = {
         "Accept": "*/*",
         "Accept-Encoding": "gzip, deflate",
@@ -110,7 +110,7 @@ def get_sentence():
     Returns:
         str: 格式化的金句内容
     """
-    print("--- 3.正在获取每日金句 ---")
+    print("--- 正在获取每日金句 ---")
     sen_url = 'https://v1.hitokoto.cn?c=d&c=h&c=i&c=k'
     try:
         get_sen = requests.get(url=sen_url, timeout=10).json()
@@ -120,7 +120,22 @@ def get_sentence():
 
     return sentence
 
-def message_content(city_code, timestamps, info_time, news_list, sentence):
+def get_financial_data():
+    """获取金融数据"""
+    print("--- 正在获取金融数据 ---")
+    url = "https://www.blacksamurai.top/finance/data.txt" 
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+    }
+    response = requests.get(url, headers=headers)
+    response.encoding = 'utf-8'
+    
+    # 跳过第一行，并保留后续所有行
+    lines = response.text.splitlines()
+    filtered_lines = [line.strip() for line in lines[1:]]
+    return '\n'.join(filtered_lines)
+
+def message_content(city_code, timestamps, info_time, news_list, financial, sentence):
     """
     组装消息内容。
 
@@ -129,7 +144,8 @@ def message_content(city_code, timestamps, info_time, news_list, sentence):
         timestamps: 时间戳
         info_time: 信息时间
         news_list: 新闻列表
-        sentence: 金句
+        financial: 金融数据
+        sentence: 每日金句
 
     Returns:
         str: 完整的消息内容
@@ -150,6 +166,8 @@ def message_content(city_code, timestamps, info_time, news_list, sentence):
         f"{weather_info(cookie, city_code, timestamps)}\n\n"
         "******热点新闻******\n\n"
         f"{chr(10).join(news_list[:3])}\n\n"  # 只截取前3条新闻，微信推送有长度限制
+        "******投资风向******\n\n"
+        f"{financial}\n\n"
         "******每日金句******\n\n"
         f"{sentence}"
     )
@@ -204,7 +222,7 @@ if __name__ == '__main__':
         news_time = info_time.strftime("%Y%m%d")
 
         # 生成并发送消息
-        content = message_content(city_code, timestamps, info_time, get_news(news_type, news_time), get_sentence())
+        content = message_content(city_code, timestamps, info_time, get_news(news_type, news_time), get_financial_data(), get_sentence())
         from send_message import send_message
         send_message(wxid, wxsecret, agentid, touser, content)
     
