@@ -1,3 +1,11 @@
+"""
+@Time : 2025/9/24 8:45
+@Author : black_samurai
+@File : send_weather_message.py
+@description : 获取财经类指标
+"""
+
+
 import yfinance as yf
 import time
 import random
