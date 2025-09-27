@@ -1,18 +1,10 @@
-"""
-@Time : 2025/9/24 8:45
-@Author : black_samurai
-@File : send_weather_message.py
-@description : 获取财经类指标
-"""
-
-
-import yfinance as yf
+import os
 import time
 import random
+import yfinance as yf
 from yfinance.exceptions import YFRateLimitError
 
-#代理设置
-import os
+# 代理设置
 proxy = 'http://127.0.0.1:7890'
 os.environ['HTTP_PROXY'] = proxy
 os.environ['HTTPS_PROXY'] = proxy
@@ -30,15 +22,29 @@ def read_yesterday_data(file_path):
             lines = f.readlines()
             for line in lines:
                 if "标普PE:" in line:
-                    yesterday_data["标普PE"] = float(line.split(":")[1].strip())
+                    # 解析格式如: "标普PE: 28.07(+0.00%)"
+                    value_part = line.split(":")[1].strip()
+                    # 提取纯数字部分
+                    import re
+                    number_match = re.search(r'[\d.]+', value_part)
+                    if number_match:
+                        yesterday_data["标普PE"] = float(number_match.group())
                 elif "纳指PE:" in line:
-                    yesterday_data["纳指PE"] = float(line.split(":")[1].strip())
+                    value_part = line.split(":")[1].strip()
+                    import re
+                    number_match = re.search(r'[\d.]+', value_part)
+                    if number_match:
+                        yesterday_data["纳指PE"] = float(number_match.group())
                 elif "国内金价:" in line:
-                    yesterday_data["国内金价"] = float(line.split(":")[1].strip())
+                    value_part = line.split(":")[1].strip()
+                    import re
+                    number_match = re.search(r'[\d.]+', value_part)
+                    if number_match:
+                        yesterday_data["国内金价"] = float(number_match.group())
     except FileNotFoundError:
         print("未找到data.txt文件，将使用默认值")
-    except ValueError:
-        print("数据格式错误，将使用默认值")
+    except Exception as e:
+        print(f"读取数据时出错: {e}，将使用默认值")
 
     return yesterday_data
 
@@ -118,8 +124,8 @@ def get_financial_data(max_retries=3, base_delay=1):
                 }
 
 if __name__ == "__main__":
-    # 文件路径
-    file_path = "./data.txt"
+    # 文件路径 - 和py文件同路径+data.txt
+    file_path = os.path.join(os.path.dirname(__file__), "data.txt")
 
     # 获取今天的金融数据
     financial_data = get_financial_data()
