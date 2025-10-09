@@ -270,12 +270,31 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
  
         print(f"\n--- 阶段2完成: 成功处理了 {len(emails_data)} 封邮件。---")
 
-        # 统计邮件数
-        received_data = [mail for mail in emails_data if user_email.lower() not in mail.get('from', '').lower()]
-        total_received = len(received_data)
-        total_sent = len(emails_data) - total_received
+        # 修正统计逻辑：
+        # 遍历所有处理过的邮件，正确区分已发送和已接收
+        # 已发送：发件人是自己
+        # 已接收：发件人不是自己（这些是需要AI分析的）
+        
+        user_email_lower = user_email.lower()
+        total_sent = 0
+        received_data_for_ai = []
 
-        return received_data, total_received, total_sent, total_blacklist
+        for mail_data in emails_data:
+            from_address = mail_data.get('from', '')
+            
+            # 使用正则表达式从发件人信息中提取纯邮箱地址
+            match = re.search(r'<([^>]+)>', from_address)
+            actual_from_email = match.group(1).lower() if match else from_address.lower()
+
+            if user_email_lower == actual_from_email:
+                total_sent += 1
+            else:
+                received_data_for_ai.append(mail_data)
+        
+        total_received = len(received_data_for_ai)
+
+        # get_emails 函数应该只返回需要被AI分析的邮件
+        return received_data_for_ai, total_received, total_sent, total_blacklist
  
     except imaplib.IMAP4.error as e:
         print(f"[错误] IMAP 错误: {e}")
@@ -297,13 +316,23 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
         socket.setdefaulttimeout(original_timeout)
 
 # --- AI 与推送 ---
-def summarize_with_ai(emails_list,total_received, total_sent, total_blacklist):
+def summarize_with_ai(emails_list, total_received, total_sent, total_blacklist):
     """调用AI API总结邮件内容。"""
+    
+    # 准备AI prompt的头部，这部分总是需要，无论是否有收到的邮件
+    ai_prompt_header = (
+        f"你是一个专业的邮件摘要助手。请根据以下邮件内容，为我生成一份今日（{datetime.now().date().strftime('%Y-%m-%d')}）的邮件摘要报告。"
+        "报告格式如下：\n\n"
+        f"今日共收到邮件 {total_received} 封，发送 {total_sent} 封，过滤通知消息 {total_blacklist} 封。\n\n"
+    )
+
+    # 如果没有收到需要分析的邮件，直接返回统计信息
     if not emails_list:
-        return f"今日共发送 {total_sent} 封邮件，收到 {total_received} 封邮件。无需要分析的外部邮件。"
+        return f"今日共收到邮件 {total_received} 封，发送 {total_sent} 封，过滤通知消息 {total_blacklist} 封。\n\n无需要AI分析的外部邮件。"
 
     print("正在准备内容并调用AI进行总结...")
 
+    # --- 准备邮件正文内容 ---
     formatted_emails = []
     for i, mail in enumerate(emails_list):
         content_snippet = mail.get('content', '')[:200]
@@ -318,24 +347,24 @@ def summarize_with_ai(emails_list,total_received, total_sent, total_blacklist):
         )
     ai_input_content = "\n\n".join(formatted_emails)
 
-    # 获取AI配置
-    ai_api_key = os.getenv("AI_API_KEY")
-    ai_base_url = os.getenv("AI_BASE_URL")
-    AI_MODEL_NAME = os.getenv("AI_MODEL_NAME")
-
-    client = OpenAI(api_key=ai_api_key, base_url=ai_base_url)
+    # --- 构建完整的System Prompt ---
     system_prompt = (
-        f"你是一个专业的邮件摘要助手。请根据以下邮件内容，为我生成一份今日（{datetime.now().date().strftime('%Y-%m-%d')}）的邮件摘要报告。"
-        "报告格式如下：\n\n"
-        f"今日共收到邮件{total_received} 封，发送 {total_sent} 封，黑名单 {total_blacklist} 封，其中x封需回复\n\n"
+        ai_prompt_header +
         "******邮件内容******\n\n"
         "1. 【邮件主题】\n   - 发件人: [发件人姓名]\n   - 核心内容: [对邮件内容的1-2句话精炼总结，突出要点和待办事项]\n\n"
         "2. 【另一封邮件主题】\n   - 发件人: [发件人姓名]\n   - 核心内容: [总结...]\n\n"
         "如果邮件内容需要回复或处理，请在核心内容最后加上提醒，例如 '(需回复)'。"
         "请确保总结简明扼要，严格遵循以上格式。"
     )
-
+    
+    # --- 调用AI ---
     try:
+        ai_api_key = os.getenv("AI_API_KEY")
+        ai_base_url = os.getenv("AI_BASE_URL")
+        AI_MODEL_NAME = os.getenv("AI_MODEL_NAME")
+
+        client = OpenAI(api_key=ai_api_key, base_url=ai_base_url)
+        
         response = client.chat.completions.create(
             model=AI_MODEL_NAME,
             messages=[
@@ -343,9 +372,16 @@ def summarize_with_ai(emails_list,total_received, total_sent, total_blacklist):
                 {"role": "user", "content": ai_input_content},
             ],
             stream=False,
-            timeout=120, # 改进点：为API调用设置超时
+            timeout=120,
         )
-        return response.choices[0].message.content
+        # 将AI生成的摘要与我们可靠的统计头信息结合
+        ai_summary = response.choices[0].message.content
+        # 从AI返回内容中提取邮件主体部分，避免重复统计信息
+        if "******邮件内容******" in ai_summary:
+            ai_summary = ai_summary.split("******邮件内容******", 1)[1]
+
+        return f"今日共收到邮件 {total_received} 封，发送 {total_sent} 封，过滤通知消息 {total_blacklist} 封。\n\n******邮件内容******{ai_summary}"
+
     except Exception as e:
         print(f"[错误] 调用AI API时发生错误: {e}")
         return f"AI总结失败：{e}"
@@ -420,14 +456,13 @@ if __name__ == '__main__':
         day = today.strftime("%Y-%m-%d") + " " + week_dict[today.weekday()]
 
 
-        if not emails:
-            content = f"{day} 未收到新邮件。"
-        else:
-            content = (
-                f"{day}\n\n"
-                "********总结********\n\n"
-                f"{summarize_with_ai(emails, total_received, total_sent, total_blacklist)}"
-            )
+        # 简化报告生成逻辑，无论是否有收到邮件，都统一处理
+        summary_text = summarize_with_ai(emails, total_received, total_sent, total_blacklist)
+        content = (
+            f"{day}\n\n"
+            "********总结********\n\n"
+            f"{summary_text}"
+        )
 
         print("\n--- 生成的总结内容 ---\n")
         print(content)
