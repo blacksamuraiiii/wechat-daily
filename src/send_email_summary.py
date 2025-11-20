@@ -159,8 +159,11 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
     if blacklist_emails is None:
         blacklist_emails = []
     elif isinstance(blacklist_emails, str):
-        # 如果是字符串，按逗号分割
-        blacklist_emails = [email.strip().lower() for email in blacklist_emails.split(',') if email.strip()]
+        # 如果是字符串，按逗号分割，并清理空格
+        blacklist_emails = [email.strip() for email in blacklist_emails.split(',') if email.strip()]
+    elif isinstance(blacklist_emails, list):
+        # 如果已经是列表，只需清理空格
+        blacklist_emails = [email.strip() for email in blacklist_emails if email.strip()]
     
     if blacklist_emails:
         print(f"已配置发件人黑名单: {', '.join(blacklist_emails)}")
@@ -255,12 +258,44 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
                 
                 # 检查发件人是否在黑名单中
                 from_email = email_content['from'].lower()
-                is_blacklisted = any(black_email in from_email for black_email in blacklist_emails)
+                
+                # 提取发件人邮箱地址（从 "姓名 <email@domain.com>" 格式中提取）
+                import re
+                match = re.search(r'<([^>]+)>', from_email)
+                sender_email = match.group(1) if match else from_email
+                sender_email = sender_email.strip()
+                
+                # 精确匹配黑名单：支持完整邮箱地址和域名级别过滤
+                is_blacklisted = False
+                matched_black_item = None
+                
+                for black_item in blacklist_emails:
+                    black_item = black_item.strip()
+                    if not black_item:
+                        continue
+                    
+                    # 完整邮箱地址匹配
+                    if sender_email == black_item:
+                        is_blacklisted = True
+                        matched_black_item = black_item
+                        break
+                    
+                    # 域名级别匹配（如果黑名单项包含@，则进行完整匹配；否则作为域名匹配）
+                    if '@' not in black_item:
+                        # 黑名单项不包含@，作为域名处理
+                        if sender_email.endswith('@' + black_item):
+                            is_blacklisted = True
+                            matched_black_item = black_item
+                            break
+                
                 total_blacklist += 1 if is_blacklisted else 0
                 
                 if is_blacklisted:
-                    print(f"  - 跳过黑名单发件人邮件: {email_content['from']} (主题: {email_content['subject']})")
+                    print(f"  - 跳过黑名单发件人邮件: {email_content['from']} (主题: {email_content['subject']}) - 匹配项: {matched_black_item}")
                     continue
+                else:
+                    # 添加调试信息，显示发件人邮箱和黑名单配置
+                    print(f"  - 邮件通过过滤: {sender_email} (主题: {email_content['subject']})")
                 
                 emails_data.append(email_content)
                 print(f"  - 已处理邮件: 主题='{email_content['subject']}'")
