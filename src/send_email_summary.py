@@ -259,10 +259,17 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
                 # 检查发件人是否在黑名单中
                 from_email = email_content['from'].lower()
                 
-                # 提取发件人邮箱地址（从 "姓名 <email@domain.com>" 格式中提取）
+                # 提取发件人邮箱地址（从 "姓名 <email@domain.com>" 或 "名称" <email@domain.com> 格式中提取）
                 import re
+                # 处理带引号的名称格式，如 "终端稽核助手" <huangweishen.js@chinatelecom.cn>
                 match = re.search(r'<([^>]+)>', from_email)
-                sender_email = match.group(1) if match else from_email
+                if match:
+                    sender_email = match.group(1)
+                else:
+                    # 如果没有尖括号格式，尝试直接提取邮箱地址
+                    match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', from_email)
+                    sender_email = match.group(0) if match else from_email
+                
                 sender_email = sender_email.strip()
                 
                 # 精确匹配黑名单：支持完整邮箱地址和域名级别过滤
@@ -318,8 +325,14 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
             from_address = mail_data.get('from', '')
             
             # 使用正则表达式从发件人信息中提取纯邮箱地址
+            # 处理带引号的名称格式，如 "终端稽核助手" <huangweishen.js@chinatelecom.cn>
             match = re.search(r'<([^>]+)>', from_address)
-            actual_from_email = match.group(1).lower() if match else from_address.lower()
+            if match:
+                actual_from_email = match.group(1).lower()
+            else:
+                # 如果没有尖括号格式，尝试直接提取邮箱地址
+                match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', from_address)
+                actual_from_email = match.group(0).lower() if match else from_address.lower()
 
             if user_email_lower == actual_from_email:
                 total_sent += 1
