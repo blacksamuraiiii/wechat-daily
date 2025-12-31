@@ -324,16 +324,13 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
         for mail_data in emails_data:
             from_address = mail_data.get('from', '')
             
-            # 使用正则表达式从发件人信息中提取纯邮箱地址
-            # 处理带引号的名称格式，如 "终端稽核助手" <huangweishen.js@chinatelecom.cn>
-            match = re.search(r'<([^>]+)>', from_address)
-            if match:
-                actual_from_email = match.group(1).lower()
-            else:
-                # 如果没有尖括号格式，尝试直接提取邮箱地址
-                match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', from_address)
-                actual_from_email = match.group(0).lower() if match else from_address.lower()
-
+            # 使用 email.utils.parseaddr 来可靠地解析发件人名称和地址
+            # 这可以正确处理 "Name <email@example.com>"、"email@example.com" 等多种格式
+            from email.utils import parseaddr
+            sender_name, actual_from_email = parseaddr(from_address)
+            actual_from_email = actual_from_email.lower()
+            
+            # 检查解析出的邮箱地址是否与用户邮箱匹配
             if user_email_lower == actual_from_email:
                 total_sent += 1
             else:
