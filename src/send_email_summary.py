@@ -13,7 +13,8 @@ import re
 import sys
 import json
 from email.header import decode_header
-from email.utils import parsedate_to_datetime
+from email.utils import parsedate_to_datetime, parseaddr
+from email.policy import default as email_policy
 from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup
@@ -236,6 +237,10 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
  
         # --- 第二阶段：获取筛选后邮件的完整内容 ---
         print("--- 阶段2: 开始获取邮件正文内容 ---")
+        user_email_lower = user_email.lower()
+        total_sent = 0
+        received_data_for_ai = []
+
         for i, num in enumerate(filtered_ids):
             print(f"正在处理第 {i+1}/{len(filtered_ids)} 封邮件 (ID: {safe_id_str(num)})...")
             try:
@@ -244,98 +249,55 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
                     print(f"  - 获取邮件ID {safe_id_str(num)} 失败, 跳过。")
                     continue
                 
-                msg = email.message_from_bytes(data[0][1])
-                body_text = get_body_from_msg(msg)
-                main_content = extract_main_body(body_text)
- 
-                email_content = {
-                    'from': decode_str(msg['from']),
-                    'to': decode_str(msg['to']),
-                    'subject': decode_str(msg['subject']),
-                    'date': msg['date'],
-                    'content': main_content,
-                }
-                
-                # 检查发件人是否在黑名单中
-                from_email = email_content['from'].lower()
-                
-                # 提取发件人邮箱地址（从 "姓名 <email@domain.com>" 或 "名称" <email@domain.com> 格式中提取）
-                import re
-                # 处理带引号的名称格式，如 "终端稽核助手" <huangweishen.js@chinatelecom.cn>
-                match = re.search(r'<([^>]+)>', from_email)
-                if match:
-                    sender_email = match.group(1)
-                else:
-                    # 如果没有尖括号格式，尝试直接提取邮箱地址
-                    match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', from_email)
-                    sender_email = match.group(0) if match else from_email
-                
-                sender_email = sender_email.strip()
-                
-                # 精确匹配黑名单：支持完整邮箱地址和域名级别过滤
+                msg = email.message_from_bytes(data[0][1], policy=email_policy)
+
+                # --- 核心逻辑重构 ---
+                # 1. 解析真实发件人地址
+                # 使用 policy 后，可以直接从 msg 对象获取地址，它会自动处理解码
+                sender_name, sender_email_addr = parseaddr(str(msg['from']))
+                sender_email_addr = sender_email_addr.lower().strip()
+
+                # 2. 判断是否是自己发送的邮件
+                if sender_email_addr == user_email_lower:
+                    total_sent += 1
+                    print(f"  - 跳过自己发送的邮件: {from_address} (主题: {decode_str(msg['subject'])})")
+                    continue
+
+                # 3. 如果不是自己发送的，再检查是否在黑名单中
                 is_blacklisted = False
                 matched_black_item = None
-                
                 for black_item in blacklist_emails:
                     black_item = black_item.strip()
-                    if not black_item:
-                        continue
+                    if not black_item: continue
                     
-                    # 完整邮箱地址匹配
-                    if sender_email == black_item:
+                    if sender_email_addr == black_item or ('@' not in black_item and sender_email_addr.endswith('@' + black_item)):
                         is_blacklisted = True
                         matched_black_item = black_item
                         break
-                    
-                    # 域名级别匹配（如果黑名单项包含@，则进行完整匹配；否则作为域名匹配）
-                    if '@' not in black_item:
-                        # 黑名单项不包含@，作为域名处理
-                        if sender_email.endswith('@' + black_item):
-                            is_blacklisted = True
-                            matched_black_item = black_item
-                            break
-                
-                total_blacklist += 1 if is_blacklisted else 0
                 
                 if is_blacklisted:
-                    print(f"  - 跳过黑名单发件人邮件: {email_content['from']} (主题: {email_content['subject']}) - 匹配项: {matched_black_item}")
+                    total_blacklist += 1
+                    print(f"  - 跳过黑名单发件人邮件: {str(msg['from'])} (主题: {str(msg['subject'])}) - 匹配项: {matched_black_item}")
                     continue
-                else:
-                    # 添加调试信息，显示发件人邮箱和黑名单配置
-                    print(f"  - 邮件通过过滤: {sender_email} (主题: {email_content['subject']})")
-                
-                emails_data.append(email_content)
+
+                # 4. 通过所有过滤，加入待分析列表
+                body_text = get_body_from_msg(msg)
+                main_content = extract_main_body(body_text)
+                email_content = {
+                    'from': str(msg['from']),
+                    'to': str(msg['to']),
+                    'subject': str(msg['subject']),
+                    'date': str(msg['date']),
+                    'content': main_content,
+                }
+                received_data_for_ai.append(email_content)
                 print(f"  - 已处理邮件: 主题='{email_content['subject']}'")
+
             except Exception as e:
                 print(f"  - 处理邮件ID {safe_id_str(num)} 时发生严重错误, 跳过。错误: {e}")
                 continue
  
-        print(f"\n--- 阶段2完成: 成功处理了 {len(emails_data)} 封邮件。---")
-
-        # 修正统计逻辑：
-        # 遍历所有处理过的邮件，正确区分已发送和已接收
-        # 已发送：发件人是自己
-        # 已接收：发件人不是自己（这些是需要AI分析的）
-        
-        user_email_lower = user_email.lower()
-        total_sent = 0
-        received_data_for_ai = []
-
-        for mail_data in emails_data:
-            from_address = mail_data.get('from', '')
-            
-            # 使用 email.utils.parseaddr 来可靠地解析发件人名称和地址
-            # 这可以正确处理 "Name <email@example.com>"、"email@example.com" 等多种格式
-            from email.utils import parseaddr
-            sender_name, actual_from_email = parseaddr(from_address)
-            actual_from_email = actual_from_email.lower()
-            
-            # 检查解析出的邮箱地址是否与用户邮箱匹配
-            if user_email_lower == actual_from_email:
-                total_sent += 1
-            else:
-                received_data_for_ai.append(mail_data)
-        
+        print(f"\n--- 阶段2完成: 成功处理了 {len(received_data_for_ai)} 封邮件，过滤自己发送 {total_sent} 封，黑名单过滤 {total_blacklist} 封。---")
         total_received = len(received_data_for_ai)
 
         # get_emails 函数应该只返回需要被AI分析的邮件
