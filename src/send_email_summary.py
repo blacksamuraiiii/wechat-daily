@@ -260,7 +260,7 @@ def get_emails(imap_server, imap_port, user_email, password, start_date, end_dat
                 # 2. 判断是否是自己发送的邮件
                 if sender_email_addr == user_email_lower:
                     total_sent += 1
-                    print(f"  - 跳过自己发送的邮件: {from_address} (主题: {decode_str(msg['subject'])})")
+                    print(f"  - 跳过自己发送的邮件: {sender_email_addr} (主题: {decode_str(msg['subject'])})")
                     continue
 
                 # 3. 如果不是自己发送的，再检查是否在黑名单中
@@ -327,11 +327,6 @@ def summarize_with_ai(emails_list, total_received, total_sent, total_blacklist):
     """调用AI API总结邮件内容。"""
     
     # 准备AI prompt的头部，这部分总是需要，无论是否有收到的邮件
-    ai_prompt_header = (
-        f"你是一个专业的邮件摘要助手。请根据以下邮件内容，为我生成一份今日（{datetime.now().date().strftime('%Y-%m-%d')}）的邮件摘要报告。"
-        "报告格式如下：\n\n"
-        f"今日共收到邮件 {total_received} 封，发送 {total_sent} 封，过滤通知消息 {total_blacklist} 封。\n\n"
-    )
 
     # 如果没有收到需要分析的邮件，直接返回统计信息
     if not emails_list:
@@ -355,9 +350,11 @@ def summarize_with_ai(emails_list, total_received, total_sent, total_blacklist):
     ai_input_content = "\n\n".join(formatted_emails)
 
     # --- 构建完整的System Prompt ---
+    # 注意：不要在 prompt 中写入实际统计数字，否则 AI 会在回复中复述，
+    # 与下面手动 prepend 的统计行重复。统计行由调用方统一拼接一次即可。
     system_prompt = (
-        ai_prompt_header +
-        "******邮件内容******\n\n"
+        "你是一个专业的邮件摘要助手。请根据以下邮件内容，为我生成一份今日邮件摘要报告。\n"
+        "严格按以下格式输出，直接从第 1 封邮件开始，不要输出任何统计信息或分隔符：\n\n"
         "1. 【邮件主题】\n   - 发件人: [发件人姓名]\n   - 核心内容: [对邮件内容的1-2句话精炼总结，突出要点和待办事项]\n\n"
         "2. 【另一封邮件主题】\n   - 发件人: [发件人姓名]\n   - 核心内容: [总结...]\n\n"
         "如果邮件内容需要回复或处理，请在核心内容最后加上提醒，例如 '(需回复)'。"
@@ -379,15 +376,20 @@ def summarize_with_ai(emails_list, total_received, total_sent, total_blacklist):
                 {"role": "user", "content": ai_input_content},
             ],
             stream=False,
+            max_tokens=3000,  # 显式设定输出上限，避免服务端默认值变动导致摘要被拦腰截断
             timeout=120,
         )
         # 将AI生成的摘要与我们可靠的统计头信息结合
-        ai_summary = response.choices[0].message.content
-        # 从AI返回内容中提取邮件主体部分，避免重复统计信息
-        if "******邮件内容******" in ai_summary:
-            ai_summary = ai_summary.split("******邮件内容******", 1)[1]
+        # 统计行只在此处拼接一次，prompt 中已要求 AI 不要复述统计信息
+        choice = response.choices[0]
+        ai_summary = (choice.message.content or "").strip()
+        if not ai_summary:
+            return f"今日共收到邮件 {total_received} 封，发送 {total_sent} 封，过滤通知消息 {total_blacklist} 封。\n\nAI 未返回内容。"
+        if choice.finish_reason == "length":
+            print("[警告] AI 输出触达 max_tokens 上限，摘要可能不完整")
+            ai_summary += "\n\n（注：摘要触达模型输出上限，可能不完整）"
 
-        return f"今日共收到邮件 {total_received} 封，发送 {total_sent} 封，过滤通知消息 {total_blacklist} 封。\n\n******邮件内容******{ai_summary}"
+        return f"今日共收到邮件 {total_received} 封，发送 {total_sent} 封，过滤通知消息 {total_blacklist} 封。\n\n******邮件内容******\n{ai_summary}"
 
     except Exception as e:
         print(f"[错误] 调用AI API时发生错误: {e}")

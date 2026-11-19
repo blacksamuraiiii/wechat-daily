@@ -1,0 +1,21 @@
+[Unit]
+Description=wechat-daily 企业微信每日推送与对话服务
+Documentation=file:/www/py_project/wechat-daily/docs.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www
+Group=www
+WorkingDirectory=/www/py_project/wechat-daily
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+ExecStart=/www/server/pyporject_evn/weather_venv/bin/waitress-serve --listen=0.0.0.0:1111 --threads=4 --channel-timeout=300 run:app
+Restart=always
+RestartSec=5
+StandardOutput=append:/www/py_project/wechat-daily/logs/run.log
+StandardError=append:/www/py_project/wechat-daily/logs/run.log
+
+[Install]
+WantedBy=multi-user.target
